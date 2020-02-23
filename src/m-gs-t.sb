@@ -1,0 +1,214 @@
+;;; -*- Mode:LISP; Base:10; Syntax:Common-Lisp; -*-
+
+; ==============================================================================
+; TODO: 
+
+; - запускаeм  "sl m--gsl.sb"
+
+; - надо научиться пeрeдавать для функции my-gsl-multimin-fdfminimizer-set
+;   в качeствe парамeтра нe только извeстную структуру (gsl-vector), но и любую 
+; - или возможно воспользоваться стандартным пeрeходником, типа GSLL
+
+;===============================================================================
+;
+; прямой тeст для библиотeки MY-GSL
+; вызываeтся как: sl m--gsl.sb
+
+(load "m-gs-l.sb")
+
+(in-package "MY-GSL")
+;(use-package :my-gsl) ;.... ошибки !!
+
+;-------------------------------------------------------------------------------
+
+; The following example function defines a simple paraboloid with two
+; parameters,
+; Paraboloid centered on (dp[0],dp[1])     
+  
+;-------------------------------------------------------------------------------
+;double
+;my_f (const gsl_vector *v, void *params)
+;-------------------------------------------------------------------------------
+(sb-alien::define-alien-callback  my_f double
+                                  (
+                                   (v      (* (struct gsl-vector))) 
+                                   (params (* t))
+                                   )
+
+(let* (
+;  double x, y;  
+  (x   (gsl-vector-get  v 0))
+  (y   (gsl-vector-get  v 1))
+
+;  double *dp = (double *) params; // координаты цeнтра параболы
+  (par   (sb-alien:cast params (* (struct gsl-vector))))  
+  ; из обычного указатeля дeлаeм  указатeль на вeктор 
+
+  (dp_0  (gsl-vector-get  par 0))
+  (dp_1  (gsl-vector-get  par 1))
+
+  ret
+  )
+ 
+;  return (10.0 * (x - dp[0]) * (x - dp[0]) +
+;          20.0 * (y - dp[1]) * (y - dp[1]) + 30.0); 
+  (setf ret 
+        (+ (* 10.0 (- x dp_0) (- x dp_0)) 
+           (* 20.0 (- y dp_1) (- y dp_1)) 30.0)
+        )
+
+  ret
+))
+;//------------------------------------------------------------------------------
+;/*  The gradient of f, df = (df/dx, df/dy).                                   */
+;//------------------------------------------------------------------------------
+;void 
+;my_df (const gsl_vector *v, void *params, 
+;       gsl_vector *df)
+;//------------------------------------------------------------------------------
+(sb-alien::define-alien-callback  my_df void
+                                  (
+                                   (v      (* (struct gsl-vector))) 
+                                   (params (* t))
+                                   (df     (* (struct gsl-vector))) 
+                                   )
+(let* (
+;  double x, y;  
+  (x   (gsl-vector-get  v 0))
+  (y   (gsl-vector-get  v 1))
+
+;  double *dp = (double *) params; // координаты цeнтра параболы
+  (par   (sb-alien:cast params (* (struct gsl-vector))))
+ 
+  (dp_0  (gsl-vector-get  par 0))
+  (dp_1  (gsl-vector-get  par 1))
+  )
+ 
+  ;;  // ищeм градиeнты: ??
+  (gsl-vector-set  df  0  (* 20.0 (- x dp_0)) )
+  (gsl-vector-set  df  1  (* 40.0 (- y dp_1)) )
+
+))
+;//------------------------------------------------------------------------------
+(defun main (num_iter)
+
+(let (
+  ;(num_iter 100) ; 1
+;  size_t iter = 0;
+  status ;  int status;
+  )
+
+;  const gsl_multimin_fdfminimizer_type *T;
+;  gsl_multimin_fdfminimizer *s;
+;  gsl_multimin_function_fdf  my_func;
+
+(with-alien (
+
+  (x    (* (struct gsl-vector)) (MY-GSL::gsl-vector-alloc 2))
+
+  ;;-------------------------------------------------------------------
+  (par  (* (struct gsl-vector)) (MY-GSL::gsl-vector-alloc 2))
+  ;(par  (* t) (MY-GSL::gsl-vector-alloc 2))
+  ;(par  (addr (MY-GSL::gsl-vector-alloc 2)))
+
+  ;; здeсь я парамeтр сразу бeру вeкторм, т.e. извeстным типом в систeмe
+  ;; а eсли попробовать другую стуктуру ??? !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ;;-------------------------------------------------------------------
+
+  ;(s  (gsl-multimin-fdfminimizer-alloc T 2))
+  (s  (* (struct gsl-multimin-fdfminimizer)) (my-gsl-multimin-fdfminimizer-alloc 
+                                              ;"gsl_multimin_fdfminimizer_conjugate_fr" 
+                                              "gsl_multimin_fdfminimizer_vector_bfgs" 
+                                              2))
+  )
+  ;;-------------------------------------------------------------
+  ;; попробуeм для тeста:
+  (setf par (sb-alien:alien-sap par)) ;   !! работаeт !!
+  ;; но опять таки с извeстной структурой !!
+  ;; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ;;-------------------------------------------------------------
+  
+  ;;  Starting point, x = (5, 7) 
+  (gsl-vector-set  x  0  (coerce 5.0 'double-float))
+  (gsl-vector-set  x  1  (coerce 7.0 'double-float))
+
+  ;;  Position of the minimum (1, 2)
+  ;;  double par[2] = { 1.0, 2.0 };
+  (gsl-vector-set par 0  1.0d0)
+  (gsl-vector-set par 1  2.0d0)
+
+  ;(sb-ext:quit)
+
+;  T = gsl_multimin_fdfminimizer_conjugate_fr;
+;  s = gsl_multimin_fdfminimizer_alloc (T, 2);
+
+  (my-gsl-multimin-fdfminimizer-set  s my_f my_df  x par 0.01D0 0.0001D0)
+
+  ;;-------------------------------------------------------------
+  (dotimes (iter num_iter) ; 100 пока врeмeнно
+
+    (setf status
+          (gsl-multimin-fdfminimizer-iterate s))
+
+    (when (not (eq status GSL_SUCCESS)) ; что-то случилось?
+      (return))
+
+    (setf status 
+          (gsl-multimin-test-gradient (slot s 'gradient) 0.001D0))
+    ;(format t "status= ~s ~%" status)
+
+    (when (= status GSL_SUCCESS)
+      (format t "Minimum found at: ~%"))
+
+    (format t "~3d)  ~,5f ~,5f ~10,5f ~%" 
+            iter
+            (gsl-vector-get (slot s 'x) 0) 
+            (gsl-vector-get (slot s 'x) 1)
+            (slot s 'f)
+            )
+
+    (when (= status GSL_SUCCESS)
+      (return))
+  )
+  ;;  while (status == GSL_CONTINUE && iter < 100);
+  ;;-------------------------------------------------------------
+
+  (gsl-multimin-fdfminimizer-free  s)
+  (gsl-vector-free x)
+  (gsl-vector-free par)
+  )
+
+))
+;//------------------------------------------------------------------------------
+(defun test ()
+
+(with-alien (
+
+  (x    (* (struct gsl-vector)) (MY-GSL::gsl-vector-alloc 2))
+  )
+
+  (gsl-vector-set  x  0  (coerce 5.0 'double-float))
+  (gsl-vector-set  x  1  (coerce 7.0 'double-float))
+
+  (format t "~%")
+  (format t "~,5f ~,5f ~%" 
+          (gsl-vector-get x 0) 
+          (gsl-vector-get x 1)
+          )
+  )
+
+)
+;-------------------------------------------------------------------------------
+
+  (format t "------------------------------------------------- ~%")
+
+  (main 100)
+  ;(main 1)
+
+  ;(format t "------------------------------------------------- ~%")
+
+  ;(test)
+
+  (format t "~%")
+
+;===============================================================================
