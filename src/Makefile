@@ -1,3 +1,5 @@
+# -*-   mode: makefile ; coding: koi8   -*- ------------------------------------
+
 # =============================================================================# 
 
 #GCC_o64   = gcc -D_OPT64
@@ -13,11 +15,11 @@ CC    = gcc -Wall -fpic # -g $(GLIB_INCS)
 GSL_SRC = /home/.../gsl_new/1.8/.../gsl-1.8
 GSL_DIR = /home/.../gsl_new/1.8/.../R
 
-#MINGSL_SO = libgslmin.so  # 
-#MYGSL_SO  = libmygsl.so   # оболочка для вызова чeрeз нe GSL (libgslmin.so) из Лиспа 
+MINGSL_SO = libgslmin.so  # 
+MYGSL_SO  = libmygsl.so   # оболочка для вызова чeрeз нe GSL (libgslmin.so) из Лиспа 
 
-MINGSL_SO = libgslmin.dll  # 
-MYGSL_SO  = libmygsl.dll   # оболочка для вызова чeрeз нe GSL (libgslmin.so) из Лиспа 
+#MINGSL_SO = libgslmin.dll  # 
+#MYGSL_SO  = libmygsl.dll   # оболочка для вызова чeрeз нe GSL (libgslmin.so) из Лиспа 
 
 MINGSL_OBJS = L/m_fdfminimizer.o L/m_conjugate_fr.o L/m_convergence.o L/m_vector_bfgs.o L/m_fminimizer.o L/m_simplex.o L/m_steepest_descent.o L/m_conjugate_pr.o L/m_diff.o L/m_directional_minimize.o \
 	L/a_error.o L/a_stream.o L/a_results.o \
@@ -35,9 +37,10 @@ PROGS = Test Mini XXX_test Prim $(MINGSL_SO) #$(MYGSL_SO)
 all : $(PROGS) 
 
 clean :
-	rm -f  *.so L/*.o T/* $(PROGS) #T/*.o T/*.a 
+	rm -f  *.so *.dll L/*.o T/* $(PROGS) #T/*.o T/*.a 
 
 # =============================================================================#
+
 $(MINGSL_SO) : $(MINGSL_OBJS)
 	gcc -shared -fpic -o $@ $^  
 
@@ -48,6 +51,7 @@ L/MyGSL.o : MyGSL.c
 	$(CC) -o $@ -c  $< #$(GSL_INC) 
 
 # =============================================================================#
+
 Test : Test.c gsl_test.h gsl_blas.h gsl_multimin.h Test_funcs.h T/test_funcs.o $(MINGSL_OBJS)
 	$(CC) -o $@  $< T/test_funcs.o $(MINGSL_OBJS) -lm
 
